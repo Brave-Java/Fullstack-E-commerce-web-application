@@ -14,8 +14,9 @@
 3. [Local Development Setup](#3-local-development-setup)
 4. [Azure DevOps CI/CD Setup](#4-azure-devops-cicd-setup)
 5. [Pending Work](#5-pending-work)
-6. [Commit Workflow](#6-commit-workflow)
-7. [Changelog](#-changelog)
+6. [Epic 637 - Local Validation Gate (Before ArgoCD)](#6-epic-637---local-validation-gate-before-argocd)
+7. [Commit Workflow](#7-commit-workflow)
+8. [Changelog](#-changelog)
 
 ---
 
@@ -301,10 +302,341 @@ git push -u origin dev
 | 5 | Add manual approval gate on the `prod` environment in Azure DevOps | Azure DevOps | ⬜ Not started |
 | 6 | Load sample data into local MongoDB on first `docker compose up` | `dev` | ⬜ Not started |
 | 7 | End-to-end smoke test locally (place an order, verify email) | Local | ⬜ Not started |
+| 8 | Epic 637.1 - Local preflight checks complete | Local | ⬜ Not started |
+| 9 | Epic 637.2 - Clean Docker restart baseline complete | Local | ⬜ Not started |
+| 10 | Epic 637.3 - All containers healthy in Docker and Eureka | Local | ⬜ Not started |
+| 11 | Epic 637.4 - Service health checks passed for all services | Local | ⬜ Not started |
+| 12 | Epic 637.5 - Local E2E order and notification verification complete | Local | ⬜ Not started |
+| 13 | Epic 637.6 - Test evidence captured and archived | Local | ⬜ Not started |
 
 ---
 
-## 6. Commit Workflow
+## 6. Epic 637 - Local Validation Gate (Before ArgoCD)
+
+> This epic is the hard gate. Do not start any ArgoCD epic/task until all Epic 637 tasks below are completed and marked done.
+
+### Goal
+
+Validate the full application stack locally, including service startup, discovery, health, routing, and end-to-end order flow.
+
+### Definition of Done
+
+- All Docker services are up and stable.
+- Eureka shows all expected backend services as registered.
+- Health checks pass for API Gateway + all backend services.
+- Frontend is reachable and can call backend through API Gateway.
+- End-to-end order flow is verified and notification service behavior is confirmed.
+- Evidence (logs + command outputs + screenshots) is saved.
+
+### Service Testing Runbook
+
+This is the practical test flow to run from the terminal and Postman before any new development starts.
+
+#### Architecture Under Test
+
+```text
+Postman / browser / curl
+  -> http://localhost:8080/api/*
+    -> API Gateway (port 8080)
+      -> StripPrefix=2
+        -> Target service
+```
+
+#### Services In Scope
+
+- Service Registry (Eureka) - `http://localhost:8761`
+- Auth Service - `http://localhost:9030` via gateway route `/api/auth-service`
+- Category Service - `http://localhost:9000` via gateway route `/api/category-service`
+- Product Service - `http://localhost:9010` via gateway route `/api/product-service`
+- User Service - `http://localhost:9050` via gateway route `/api/user-service`
+- Cart Service - `http://localhost:9060` via gateway route `/api/cart-service`
+- Order Service - `http://localhost:9070` via gateway route `/api/order-service`
+- Notification Service - `http://localhost:9020` via gateway route `/api/notification-service`
+- Frontend - `http://localhost:3000`
+
+#### Postman Setup
+
+Create one Postman environment with these variables:
+
+- `frontend` = `http://localhost:3000`
+- `gateway` = `http://localhost:8080`
+- `eureka` = `http://localhost:8761`
+- `auth` = `http://localhost:9030`
+- `category` = `http://localhost:9000`
+- `product` = `http://localhost:9010`
+- `notification` = `http://localhost:9020`
+- `user` = `http://localhost:9050`
+- `cart` = `http://localhost:9060`
+- `order` = `http://localhost:9070`
+- `token` = empty initially
+
+#### Terminal Steps
+
+1. Confirm the stack is up:
+
+```bash
+docker compose ps
+```
+
+2. Confirm all backend services are healthy:
+
+```bash
+curl -fsS http://localhost:8080/actuator/health
+curl -fsS http://localhost:9030/actuator/health
+curl -fsS http://localhost:9000/actuator/health
+curl -fsS http://localhost:9010/actuator/health
+curl -fsS http://localhost:9020/actuator/health
+curl -fsS http://localhost:9050/actuator/health
+curl -fsS http://localhost:9060/actuator/health
+curl -fsS http://localhost:9070/actuator/health
+```
+
+3. Verify Eureka registration:
+
+```text
+http://localhost:8761
+```
+
+#### Postman Steps by Service
+
+1. Frontend and gateway sanity
+- Open `{{frontend}}` in a browser and confirm the UI loads.
+- Add a simple Postman request for `GET {{gateway}}/actuator/health` and expect HTTP 200.
+
+2. Eureka dashboard check
+- Add a Postman request for `GET {{eureka}}` and confirm the dashboard HTML loads.
+
+3. Auth service
+- Create `POST {{gateway}}/auth/signin` and `POST {{gateway}}/auth/signup` requests.
+- Save the returned JWT into `{{token}}`.
+
+4. Category and product services
+- Create `GET {{gateway}}/category-service/**` and `GET {{gateway}}/product-service/**` requests for the read-only endpoints used by the UI.
+- If the exact path is unknown, read it from the browser network tab or from the service OpenAPI docs.
+
+5. User, cart, and order services
+- Create authenticated requests with header `Authorization: Bearer {{token}}`.
+- Validate the user profile, cart operations, and order creation/retrieval endpoints through the gateway.
+
+6. Notification service
+- After placing an order, inspect `notification-service` logs and verify the email flow was triggered.
+
+#### Definition of Smart Testing
+
+Yes, this is a smart way to test the system if you use Postman as a service-level validation layer, not as the only check.
+
+- Postman is good for request/response verification, auth flows, headers, tokens, and regressions.
+- `curl` is better for fast health checks and CI-friendly smoke tests.
+- Eureka and container checks confirm startup and service discovery.
+- Browser testing is still needed for the real frontend flow.
+
+The strongest approach is to combine all four: Docker status, Eureka, curl health checks, and Postman functional tests.
+
+### Azure DevOps Backlog and Sprint Setup (CLI)
+
+Use this once to create Epic 637 and all child tasks, then assign them to a sprint.
+
+```bash
+# 1) Login (required)
+az login
+
+# 2) Set defaults (replace placeholders)
+az devops configure --defaults organization=https://dev.azure.com/<your-org> project="<your-project>"
+
+# 3) Discover team and sprint path (optional helper)
+az boards iteration team list --team "<your-team>" -o table
+
+# 4) Create the epic
+EPIC_ID=$(az boards work-item create \
+  --type Epic \
+  --title "Epic 637: Local Validation Gate Before ArgoCD" \
+  --description "Validate all local services, health, discovery, and E2E flow before starting any ArgoCD epic/tasks." \
+  --query id -o tsv)
+
+echo "Created Epic ID: $EPIC_ID"
+
+# 5) Create child Product Backlog Items (or use type Task if your process requires)
+PBI1=$(az boards work-item create --type "Product Backlog Item" --title "637.1 Local preflight checks" --query id -o tsv)
+PBI2=$(az boards work-item create --type "Product Backlog Item" --title "637.2 Clean Docker restart baseline" --query id -o tsv)
+PBI3=$(az boards work-item create --type "Product Backlog Item" --title "637.3 Container and Eureka validation" --query id -o tsv)
+PBI4=$(az boards work-item create --type "Product Backlog Item" --title "637.4 Service health matrix validation" --query id -o tsv)
+PBI5=$(az boards work-item create --type "Product Backlog Item" --title "637.5 E2E order and notification smoke test" --query id -o tsv)
+PBI6=$(az boards work-item create --type "Product Backlog Item" --title "637.6 Evidence capture and sign-off" --query id -o tsv)
+
+# 6) Link children to epic
+for CHILD in "$PBI1" "$PBI2" "$PBI3" "$PBI4" "$PBI5" "$PBI6"; do
+  az boards work-item relation add --id "$EPIC_ID" --relation-type Child --target-id "$CHILD"
+done
+
+# 7) Assign all items to sprint (replace iteration path)
+ITERATION_PATH="<your-project>\\<team-or-program>\\<sprint-name>"
+
+for ITEM in "$EPIC_ID" "$PBI1" "$PBI2" "$PBI3" "$PBI4" "$PBI5" "$PBI6"; do
+  az boards work-item update --id "$ITEM" --fields "System.IterationPath=$ITERATION_PATH"
+done
+
+echo "Epic and child tasks added to backlog and sprint successfully."
+```
+
+Notes:
+
+- If your process template does not support `Product Backlog Item`, use `Task` or `User Story`.
+- To target a different team backlog, include `--team "<your-team>"` in create/list commands.
+- Replace the iteration path with one returned by `az boards iteration team list`.
+
+### Task 637.1 - Local Preflight
+
+Run from repository root:
+
+```bash
+docker context ls
+docker compose version
+docker --version
+cp -n .env.example .env
+```
+
+Then edit `.env` and set:
+
+```env
+SPRING_MAIL_USERNAME=your_email@gmail.com
+SPRING_MAIL_PASSWORD=your_app_password
+```
+
+Pass criteria:
+
+- Docker context is `default`.
+- Docker Compose is available.
+- `.env` exists with required mail variables.
+
+### Task 637.2 - Clean Docker Baseline
+
+If you have stale/locked containers, reset Docker first:
+
+```bash
+docker compose down -v --remove-orphans
+```
+
+If `permission denied` or stuck stop/kill errors appear:
+
+```bash
+sudo systemctl restart docker
+```
+
+Then return to repository and start clean:
+
+```bash
+docker compose up -d --build
+```
+
+Pass criteria:
+
+- `docker compose up` completes without port-allocation errors.
+
+### Task 637.3 - Container + Discovery Validation
+
+Check container states:
+
+```bash
+docker compose ps
+```
+
+Open Eureka dashboard:
+
+```text
+http://localhost:8761
+```
+
+Expected services in Eureka:
+
+- API-GATEWAY
+- AUTH-SERVICE
+- USER-SERVICE
+- CATEGORY-SERVICE
+- PRODUCT-SERVICE
+- CART-SERVICE
+- ORDER-SERVICE
+- NOTIFICATION-SERVICE
+
+Pass criteria:
+
+- All expected services are `UP` in Eureka.
+- No service is continuously restarting.
+
+### Task 637.4 - Health Check Matrix
+
+Run these checks:
+
+```bash
+curl -fsS http://localhost:8080/actuator/health
+curl -fsS http://localhost:9030/actuator/health
+curl -fsS http://localhost:9050/actuator/health
+curl -fsS http://localhost:9000/actuator/health
+curl -fsS http://localhost:9010/actuator/health
+curl -fsS http://localhost:9060/actuator/health
+curl -fsS http://localhost:9070/actuator/health
+curl -fsS http://localhost:9020/actuator/health
+curl -I http://localhost:3000
+```
+
+If any check fails, inspect logs:
+
+```bash
+docker compose logs -f <service-name>
+```
+
+Pass criteria:
+
+- Every service health endpoint returns HTTP 200.
+- Frontend returns an HTTP success/redirect response.
+
+### Task 637.5 - E2E Smoke Test (Order + Notification)
+
+Manual browser flow:
+
+1. Open `http://localhost:3000`.
+2. Sign up/sign in.
+3. Browse categories/products.
+4. Add product(s) to cart.
+5. Place an order.
+
+Verify notification service activity:
+
+```bash
+docker compose logs --tail=200 notification-service
+```
+
+Pass criteria:
+
+- Order is created successfully.
+- Notification service logs show a send attempt/success for order flow.
+
+### Task 637.6 - Evidence Collection and Sign-off
+
+Capture and save evidence:
+
+```bash
+docker compose ps
+docker compose logs --tail=200 service-registry
+docker compose logs --tail=200 api-gateway
+docker compose logs --tail=200 auth-service
+docker compose logs --tail=200 user-service
+docker compose logs --tail=200 category-service
+docker compose logs --tail=200 product-service
+docker compose logs --tail=200 cart-service
+docker compose logs --tail=200 order-service
+docker compose logs --tail=200 notification-service
+docker compose logs --tail=200 frontend
+```
+
+Sign-off checklist:
+
+- [ ] All Epic 637 tasks marked complete in Pending Work.
+- [ ] Changelog updated with test date and outcomes.
+- [ ] Explicit statement added: "ArgoCD epic can proceed."
+
+---
+
+## 7. Commit Workflow
 
 ### Before every commit
 
@@ -343,6 +675,22 @@ Examples:
 ---
 
 ## 📋 Changelog
+
+---
+
+### 2026-07-08 - Add Epic 637 local validation gate plan
+
+**Branch:** `dev`
+
+#### Summary
+
+Added a complete step-by-step Epic 637 execution guide for validating all services locally before any ArgoCD work begins. The guide includes preflight checks, clean Docker restart steps, service and Eureka validation, health check matrix, E2E order flow verification, evidence/sign-off criteria, and Azure DevOps CLI commands to create the epic/tasks and assign them to a sprint backlog.
+
+#### Files modified
+
+| File | Change |
+|------|--------|
+| `IMPLEMENTATION.md` | Added Epic 637 section, expanded pending tasks, updated TOC section numbering |
 
 ---
 

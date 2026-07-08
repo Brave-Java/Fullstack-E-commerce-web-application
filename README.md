@@ -48,6 +48,8 @@
    - [Terraform — Infrastructure as Code](#terraform--infrastructure-as-code)
    - [CI/CD with GitHub Actions](#cicd-with-github-actions)
 4. [How to Run Locally](#%EF%B8%8F-how-to-run-locally)
+   - [Option A: Run with Docker Compose](#option-a-run-with-docker-compose)
+   - [Option B: Run Manually](#option-b-run-manually)
 5. [How to Deploy to AWS EKS](#%EF%B8%8F-how-to-deploy-to-amazon-eks)
 6. [Demo Video](#demo-video)
 
@@ -339,6 +341,126 @@ Infrastructure is fully provisioned via Terraform for reproducibility and automa
 ---
 
 ## 🖥️ How to Run Locally
+
+---
+
+## Option A: Run with Docker Compose
+
+The easiest way to run the entire stack locally with a single command.
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/)
+- Git
+
+### Step 1: Fork and Clone the Repository
+
+```bash
+git clone https://github.com/<your-username>/Fullstack-E-commerce-web-application
+cd Fullstack-E-commerce-web-application
+```
+
+### Step 2: Configure Email (Notification Service)
+
+Copy the example env file and fill in your mail credentials:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```env
+SPRING_MAIL_USERNAME=your_email@gmail.com
+SPRING_MAIL_PASSWORD=your_app_password
+```
+
+### Step 3: Start All Services
+
+```bash
+docker compose up --build -d
+```
+
+This starts MongoDB, all microservices, and the frontend in the correct dependency order.
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost |
+| API Gateway | http://localhost:8080 |
+| Eureka Dashboard | http://localhost:8761 |
+
+### Useful Commands
+
+```bash
+# View status of all services
+docker compose ps
+
+# Follow logs for a specific service
+docker compose logs -f <service-name>
+
+# Restart all services
+docker compose restart
+
+# Restart a specific service
+docker compose restart <service-name>
+
+# Rebuild and restart after code changes
+docker compose up --build -d
+
+# Stop and remove all containers
+docker compose down
+```
+
+Available service names: `mongodb`, `service-registry`, `api-gateway`, `auth-service`, `user-service`, `category-service`, `product-service`, `cart-service`, `order-service`, `notification-service`, `frontend`
+
+---
+
+### Troubleshooting: Port Already Allocated
+
+If `docker compose restart` fails with `port is already allocated`, it means a stale container is still holding the port. Use a full stop/start cycle instead:
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+To fix a single service without touching the rest:
+
+```bash
+docker compose stop <service-name>
+docker compose rm -f <service-name>
+docker compose up -d <service-name>
+```
+
+---
+
+### Troubleshooting: Permission Denied on Containers
+
+If you see `permission denied` errors when stopping or killing containers, it is caused by mixing `docker` and `sudo docker` commands. Containers started under one user cannot be stopped by another.
+
+**Rule:** always use the same user consistently — either always with `sudo` or always without.
+
+If containers are stuck and cannot be stopped, restart the Docker daemon to force-stop all containers:
+
+```bash
+sudo systemctl restart docker
+```
+
+Then bring the stack back up:
+
+```bash
+docker compose up -d
+```
+
+To check which Docker context is active:
+
+```bash
+docker context ls
+```
+
+---
+
+## Option B: Run Manually
 
 ### Prerequisites
 
