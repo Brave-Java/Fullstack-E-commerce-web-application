@@ -3,8 +3,8 @@
 # Equivalent of azure-pipelines/order-service.yml
 # Triggers on: dev | test | prod  ·  paths: order-service source + helm chart
 #
-# Required repository secrets:
-#   ACR_REGISTRY, ACR_USERNAME, ACR_PASSWORD
+# Docker images are pushed to GitHub Container Registry (ghcr.io) using the
+# built-in GITHUB_TOKEN — no external registry secrets required.
 #
 # Required environment secrets (dev / test / prod):
 #   AZURE_CREDENTIALS, AKS_CLUSTER_NAME, AKS_RESOURCE_GROUP,
@@ -35,15 +35,16 @@ jobs:
     name: Docker Build & Push
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-push
         with:
           service-name: order-service
           service-dir: microservice-backend/order-service
-          acr-registry: ${{ secrets.ACR_REGISTRY }}
-          acr-username: ${{ secrets.ACR_USERNAME }}
-          acr-password: ${{ secrets.ACR_PASSWORD }}
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   deploy-dev:
     name: Deploy to dev
@@ -63,7 +64,7 @@ jobs:
           azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
           aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
           aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
-          acr-registry: ${{ secrets.ACR_REGISTRY }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}
           extra-helm-args: --set secret.SPRING_DATA_MONGODB_URI_ORDER=${{ secrets.SPRING_DATA_MONGODB_URI_ORDER }}
 
   deploy-test:
@@ -84,7 +85,7 @@ jobs:
           azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
           aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
           aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
-          acr-registry: ${{ secrets.ACR_REGISTRY }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}
           extra-helm-args: --set secret.SPRING_DATA_MONGODB_URI_ORDER=${{ secrets.SPRING_DATA_MONGODB_URI_ORDER }}
 
   deploy-prod:
@@ -105,5 +106,5 @@ jobs:
           azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
           aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
           aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
-          acr-registry: ${{ secrets.ACR_REGISTRY }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}
           extra-helm-args: --set secret.SPRING_DATA_MONGODB_URI_ORDER=${{ secrets.SPRING_DATA_MONGODB_URI_ORDER }}

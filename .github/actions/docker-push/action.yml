@@ -1,34 +1,54 @@
-# Composite action: Docker build + push to Azure Container Registry
-# Equivalent of azure-pipelines/templates/docker-build-push.yml
-name: Docker Build & Push to ACR
-description: Log in to ACR, build the service image, push with run-id and latest-<branch> tags.
+# Composite action: Docker build + push to a container registry
+# Defaults to GitHub Container Registry (ghcr.io) using GITHUB_TOKEN.
+# Can also be used with Azure Container Registry by passing acr-registry,
+# acr-username, and acr-password inputs.
+name: Docker Build & Push
+description: Log in to a container registry, build the service image, and push with run-id and latest-<branch> tags.
 
 inputs:
   service-name:
-    description: Service name — used as the image repository name in ACR
+    description: Service name — used as the image repository name
     required: true
   service-dir:
     description: Path to the service directory containing the Dockerfile
     required: true
-  acr-registry:
-    description: ACR login server (e.g. myregistry.azurecr.io)
+  registry:
+    description: Container registry login server (default ghcr.io)
+    required: false
+    default: 'ghcr.io'
+  registry-username:
+    description: Registry username (github.actor for GHCR; service principal client ID for ACR)
     required: true
-  acr-username:
-    description: ACR username (service principal client ID or admin username)
+  registry-password:
+    description: Registry password / token (secrets.GITHUB_TOKEN for GHCR; client secret for ACR)
     required: true
-  acr-password:
-    description: ACR password (service principal client secret or admin password)
-    required: true
+  image-prefix:
+    description: >
+      Full image name prefix before the service name
+      (e.g. ghcr.io/my-org or myacr.azurecr.io).
+      Defaults to <registry>/<github.repository_owner>.
+    required: false
+    default: ''
 
 runs:
   using: composite
   steps:
-    - name: Log in to ACR
+    - name: Compute image prefix
+      id: vars
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.image-prefix }}" ]]; then
+          echo "prefix=${{ inputs.image-prefix }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "prefix=${{ inputs.registry }}/${{ github.repository_owner }}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Log in to ${{ inputs.registry }}
       uses: docker/login-action@v3
       with:
-        registry: ${{ inputs.acr-registry }}
-        username: ${{ inputs.acr-username }}
-        password: ${{ inputs.acr-password }}
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.registry-username }}
+        password: ${{ inputs.registry-password }}
 
     - name: Build and push ${{ inputs.service-name }}
       uses: docker/build-push-action@v5
@@ -37,5 +57,5 @@ runs:
         file: ${{ inputs.service-dir }}/Dockerfile
         push: true
         tags: |
-          ${{ inputs.acr-registry }}/${{ inputs.service-name }}:${{ github.run_id }}
-          ${{ inputs.acr-registry }}/${{ inputs.service-name }}:latest-${{ github.ref_name }}
+          ${{ steps.vars.outputs.prefix }}/${{ inputs.service-name }}:${{ github.run_id }}
+          ${{ steps.vars.outputs.prefix }}/${{ inputs.service-name }}:latest-${{ github.ref_name }}
