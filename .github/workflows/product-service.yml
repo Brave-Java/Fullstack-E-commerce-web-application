@@ -1,0 +1,110 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Product Service — GitHub Actions Workflow
+# Equivalent of azure-pipelines/product-service.yml
+# Triggers on: dev | test | prod  ·  paths: product-service source + helm chart
+#
+# Docker images are pushed to GitHub Container Registry (ghcr.io) using the
+# built-in GITHUB_TOKEN — no external registry secrets required.
+#
+# Required environment secrets (dev / test / prod):
+#   AZURE_CREDENTIALS, AKS_CLUSTER_NAME, AKS_RESOURCE_GROUP,
+#   SPRING_DATA_MONGODB_URI_PRODUCT
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: product-service
+
+on:
+  push:
+    branches: [dev, test, prod]
+    paths:
+      - microservice-backend/product-service/**
+      - helm-charts/product-service/**
+      - .github/workflows/product-service.yml
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/java-build
+        with:
+          service-dir: microservice-backend/product-service
+
+  package:
+    name: Docker Build & Push
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-push
+        with:
+          service-name: product-service
+          service-dir: microservice-backend/product-service
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-dev:
+    name: Deploy to dev
+    needs: package
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: product-service
+          helm-values-key: product
+          helm-chart-path: helm-charts/product-service
+          namespace: dev
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}
+          extra-helm-args: --set secret.SPRING_DATA_MONGODB_URI_PRODUCT=${{ secrets.SPRING_DATA_MONGODB_URI_PRODUCT }}
+
+  deploy-test:
+    name: Deploy to test
+    needs: package
+    if: github.ref_name == 'test'
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: product-service
+          helm-values-key: product
+          helm-chart-path: helm-charts/product-service
+          namespace: test
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}
+          extra-helm-args: --set secret.SPRING_DATA_MONGODB_URI_PRODUCT=${{ secrets.SPRING_DATA_MONGODB_URI_PRODUCT }}
+
+  deploy-prod:
+    name: Deploy to prod
+    needs: package
+    if: github.ref_name == 'prod'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: product-service
+          helm-values-key: product
+          helm-chart-path: helm-charts/product-service
+          namespace: prod
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}
+          extra-helm-args: --set secret.SPRING_DATA_MONGODB_URI_PRODUCT=${{ secrets.SPRING_DATA_MONGODB_URI_PRODUCT }}

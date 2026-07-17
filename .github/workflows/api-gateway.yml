@@ -1,0 +1,111 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# API Gateway — GitHub Actions Workflow
+# Equivalent of azure-pipelines/api-gateway.yml
+# Triggers on: dev | test | prod  ·  paths: api-gateway source + helm chart
+#
+# Docker images are pushed to GitHub Container Registry (ghcr.io) using the
+# built-in GITHUB_TOKEN — no external registry secrets required.
+#
+# Required environment secrets (Settings → Environments → dev/test/prod):
+#   AZURE_CREDENTIALS, AKS_CLUSTER_NAME, AKS_RESOURCE_GROUP
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: api-gateway
+
+on:
+  push:
+    branches: [dev, test, prod]
+    paths:
+      - microservice-backend/api-gateway/**
+      - helm-charts/api-gateway/**
+      - .github/workflows/api-gateway.yml
+
+jobs:
+  # ── 1. Build & Test ──────────────────────────────────────────────────────────
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/java-build
+        with:
+          service-dir: microservice-backend/api-gateway
+
+  # ── 2. Docker Build & Push to GHCR ────────────────────────────────────────────
+  package:
+    name: Docker Build & Push
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-push
+        with:
+          service-name: api-gateway
+          service-dir: microservice-backend/api-gateway
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 3a. Deploy → dev ─────────────────────────────────────────────────────────
+  deploy-dev:
+    name: Deploy to dev
+    needs: package
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: api-gateway
+          helm-values-key: gateway
+          helm-chart-path: helm-charts/api-gateway
+          namespace: dev
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}
+
+  # ── 3b. Deploy → test ────────────────────────────────────────────────────────
+  deploy-test:
+    name: Deploy to test
+    needs: package
+    if: github.ref_name == 'test'
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: api-gateway
+          helm-values-key: gateway
+          helm-chart-path: helm-charts/api-gateway
+          namespace: test
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}
+
+  # ── 3c. Deploy → prod ────────────────────────────────────────────────────────
+  deploy-prod:
+    name: Deploy to prod
+    needs: package
+    if: github.ref_name == 'prod'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: api-gateway
+          helm-values-key: gateway
+          helm-chart-path: helm-charts/api-gateway
+          namespace: prod
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}

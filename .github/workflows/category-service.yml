@@ -1,0 +1,110 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Category Service — GitHub Actions Workflow
+# Equivalent of azure-pipelines/category-service.yml
+# Triggers on: dev | test | prod  ·  paths: category-service source + helm chart
+#
+# Docker images are pushed to GitHub Container Registry (ghcr.io) using the
+# built-in GITHUB_TOKEN — no external registry secrets required.
+#
+# Required environment secrets (dev / test / prod):
+#   AZURE_CREDENTIALS, AKS_CLUSTER_NAME, AKS_RESOURCE_GROUP,
+#   SPRING_DATA_MONGODB_URI_CATEGORY
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: category-service
+
+on:
+  push:
+    branches: [dev, test, prod]
+    paths:
+      - microservice-backend/category-service/**
+      - helm-charts/category-service/**
+      - .github/workflows/category-service.yml
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/java-build
+        with:
+          service-dir: microservice-backend/category-service
+
+  package:
+    name: Docker Build & Push
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-push
+        with:
+          service-name: category-service
+          service-dir: microservice-backend/category-service
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-dev:
+    name: Deploy to dev
+    needs: package
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: category-service
+          helm-values-key: category
+          helm-chart-path: helm-charts/category-service
+          namespace: dev
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}
+          extra-helm-args: --set secret.SPRING_DATA_MONGODB_URI_CATEGORY=${{ secrets.SPRING_DATA_MONGODB_URI_CATEGORY }}
+
+  deploy-test:
+    name: Deploy to test
+    needs: package
+    if: github.ref_name == 'test'
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: category-service
+          helm-values-key: category
+          helm-chart-path: helm-charts/category-service
+          namespace: test
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}
+          extra-helm-args: --set secret.SPRING_DATA_MONGODB_URI_CATEGORY=${{ secrets.SPRING_DATA_MONGODB_URI_CATEGORY }}
+
+  deploy-prod:
+    name: Deploy to prod
+    needs: package
+    if: github.ref_name == 'prod'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: category-service
+          helm-values-key: category
+          helm-chart-path: helm-charts/category-service
+          namespace: prod
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ghcr.io/${{ github.repository_owner }}
+          extra-helm-args: --set secret.SPRING_DATA_MONGODB_URI_CATEGORY=${{ secrets.SPRING_DATA_MONGODB_URI_CATEGORY }}

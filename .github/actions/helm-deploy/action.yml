@@ -1,0 +1,69 @@
+# Composite action: Helm upgrade/install to an AKS namespace
+# Equivalent of azure-pipelines/templates/helm-deploy.yml
+name: Helm Deploy to AKS
+description: Authenticate to Azure, set AKS context, ensure namespace, run helm upgrade --install.
+
+inputs:
+  service-name:
+    description: Service name used for the Helm release name
+    required: true
+  helm-values-key:
+    description: Top-level key in values.yaml (e.g. auth, cart, gateway)
+    required: true
+  helm-chart-path:
+    description: Path to the Helm chart directory (e.g. helm-charts/auth-service)
+    required: true
+  namespace:
+    description: Kubernetes namespace to deploy into (dev | test | prod)
+    required: true
+  image-tag:
+    description: Docker image tag to deploy (use github.run_id from the calling workflow)
+    required: true
+  azure-credentials:
+    description: Azure service principal JSON (value of AZURE_CREDENTIALS secret)
+    required: true
+  aks-cluster-name:
+    description: AKS cluster name
+    required: true
+  aks-resource-group:
+    description: AKS resource group
+    required: true
+  acr-registry:
+    description: ACR login server (e.g. myregistry.azurecr.io)
+    required: true
+  extra-helm-args:
+    description: Additional --set flags passed to helm upgrade (e.g. --set secret.FOO=bar)
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Log in to Azure
+      uses: azure/login@v2
+      with:
+        creds: ${{ inputs.azure-credentials }}
+
+    - name: Set AKS context
+      uses: azure/aks-set-context@v3
+      with:
+        resource-group: ${{ inputs.aks-resource-group }}
+        cluster-name: ${{ inputs.aks-cluster-name }}
+
+    - name: Ensure namespace exists
+      shell: bash
+      run: |
+        kubectl create namespace ${{ inputs.namespace }} \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Helm upgrade --install ${{ inputs.service-name }} → ${{ inputs.namespace }}
+      shell: bash
+      run: |
+        helm upgrade --install \
+          ${{ inputs.service-name }}-${{ inputs.namespace }} \
+          ${{ inputs.helm-chart-path }} \
+          --namespace ${{ inputs.namespace }} \
+          --set ${{ inputs.helm-values-key }}.image=${{ inputs.acr-registry }}/${{ inputs.service-name }}:${{ inputs.image-tag }} \
+          --values ${{ inputs.helm-chart-path }}/values-${{ inputs.namespace }}.yaml \
+          --atomic --timeout 5m \
+          ${{ inputs.extra-helm-args }}
