@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Web App (React/Vite Frontend) — GitHub Actions Workflow
+# Equivalent of azure-pipelines/web-app.yml
+# Triggers on: dev | test | prod  ·  paths: frontend source + helm chart
+#
+# Required repository secrets:
+#   ACR_REGISTRY, ACR_USERNAME, ACR_PASSWORD
+#
+# Required environment secrets (dev / test / prod):
+#   AZURE_CREDENTIALS, AKS_CLUSTER_NAME, AKS_RESOURCE_GROUP
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: web-app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev, test, prod]
+    paths:
+      - frontend/**
+      - helm-charts/web-app/**
+      - .github/workflows/web-app.yml
+
+jobs:
+  # ── 1. Build ──────────────────────────────────────────────────────────────────
+  build:
+    name: Build React App
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+
+  # ── 2. Docker Build & Push to ACR ────────────────────────────────────────────
+  package:
+    name: Docker Build & Push
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-push
+        with:
+          service-name: web-app
+          service-dir: frontend
+          acr-registry: ${{ secrets.ACR_REGISTRY }}
+          acr-username: ${{ secrets.ACR_USERNAME }}
+          acr-password: ${{ secrets.ACR_PASSWORD }}
+
+  # ── 3a. Deploy → dev ─────────────────────────────────────────────────────────
+  deploy-dev:
+    name: Deploy to dev
+    needs: package
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: web-app
+          helm-values-key: web
+          helm-chart-path: helm-charts/web-app
+          namespace: dev
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ${{ secrets.ACR_REGISTRY }}
+
+  # ── 3b. Deploy → test ────────────────────────────────────────────────────────
+  deploy-test:
+    name: Deploy to test
+    needs: package
+    if: github.ref_name == 'test'
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: web-app
+          helm-values-key: web
+          helm-chart-path: helm-charts/web-app
+          namespace: test
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ${{ secrets.ACR_REGISTRY }}
+
+  # ── 3c. Deploy → prod ────────────────────────────────────────────────────────
+  deploy-prod:
+    name: Deploy to prod
+    needs: package
+    if: github.ref_name == 'prod'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: web-app
+          helm-values-key: web
+          helm-chart-path: helm-charts/web-app
+          namespace: prod
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ${{ secrets.ACR_REGISTRY }}
