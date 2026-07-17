@@ -1,0 +1,115 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Notification Service — GitHub Actions Workflow
+# Equivalent of azure-pipelines/notification-service.yml
+# Triggers on: dev | test | prod  ·  paths: notification-service source + helm chart
+#
+# Required repository secrets:
+#   ACR_REGISTRY, ACR_USERNAME, ACR_PASSWORD
+#
+# Required environment secrets (dev / test / prod):
+#   AZURE_CREDENTIALS, AKS_CLUSTER_NAME, AKS_RESOURCE_GROUP,
+#   SPRING_MAIL_USERNAME, SPRING_MAIL_PASSWORD
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: notification-service
+
+on:
+  push:
+    branches: [dev, test, prod]
+    paths:
+      - microservice-backend/notification-service/**
+      - helm-charts/notification-service/**
+      - .github/workflows/notification-service.yml
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/java-build
+        with:
+          service-dir: microservice-backend/notification-service
+
+  package:
+    name: Docker Build & Push
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-push
+        with:
+          service-name: notification-service
+          service-dir: microservice-backend/notification-service
+          acr-registry: ${{ secrets.ACR_REGISTRY }}
+          acr-username: ${{ secrets.ACR_USERNAME }}
+          acr-password: ${{ secrets.ACR_PASSWORD }}
+
+  deploy-dev:
+    name: Deploy to dev
+    needs: package
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: notification-service
+          helm-values-key: notification
+          helm-chart-path: helm-charts/notification-service
+          namespace: dev
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ${{ secrets.ACR_REGISTRY }}
+          extra-helm-args: >-
+            --set secret.SPRING_MAIL_USERNAME=${{ secrets.SPRING_MAIL_USERNAME }}
+            --set secret.SPRING_MAIL_PASSWORD=${{ secrets.SPRING_MAIL_PASSWORD }}
+
+  deploy-test:
+    name: Deploy to test
+    needs: package
+    if: github.ref_name == 'test'
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: notification-service
+          helm-values-key: notification
+          helm-chart-path: helm-charts/notification-service
+          namespace: test
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ${{ secrets.ACR_REGISTRY }}
+          extra-helm-args: >-
+            --set secret.SPRING_MAIL_USERNAME=${{ secrets.SPRING_MAIL_USERNAME }}
+            --set secret.SPRING_MAIL_PASSWORD=${{ secrets.SPRING_MAIL_PASSWORD }}
+
+  deploy-prod:
+    name: Deploy to prod
+    needs: package
+    if: github.ref_name == 'prod'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/helm-deploy
+        with:
+          service-name: notification-service
+          helm-values-key: notification
+          helm-chart-path: helm-charts/notification-service
+          namespace: prod
+          image-tag: ${{ github.run_id }}
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          acr-registry: ${{ secrets.ACR_REGISTRY }}
+          extra-helm-args: >-
+            --set secret.SPRING_MAIL_USERNAME=${{ secrets.SPRING_MAIL_USERNAME }}
+            --set secret.SPRING_MAIL_PASSWORD=${{ secrets.SPRING_MAIL_PASSWORD }}

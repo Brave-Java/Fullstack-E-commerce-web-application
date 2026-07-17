@@ -1,0 +1,41 @@
+# Composite action: Docker build + push to Azure Container Registry
+# Equivalent of azure-pipelines/templates/docker-build-push.yml
+name: Docker Build & Push to ACR
+description: Log in to ACR, build the service image, push with run-id and latest-<branch> tags.
+
+inputs:
+  service-name:
+    description: Service name — used as the image repository name in ACR
+    required: true
+  service-dir:
+    description: Path to the service directory containing the Dockerfile
+    required: true
+  acr-registry:
+    description: ACR login server (e.g. myregistry.azurecr.io)
+    required: true
+  acr-username:
+    description: ACR username (service principal client ID or admin username)
+    required: true
+  acr-password:
+    description: ACR password (service principal client secret or admin password)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Log in to ACR
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.acr-registry }}
+        username: ${{ inputs.acr-username }}
+        password: ${{ inputs.acr-password }}
+
+    - name: Build and push ${{ inputs.service-name }}
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ inputs.service-dir }}
+        file: ${{ inputs.service-dir }}/Dockerfile
+        push: true
+        tags: |
+          ${{ inputs.acr-registry }}/${{ inputs.service-name }}:${{ github.run_id }}
+          ${{ inputs.acr-registry }}/${{ inputs.service-name }}:latest-${{ github.ref_name }}

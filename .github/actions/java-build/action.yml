@@ -1,0 +1,35 @@
+# Composite action: Maven build + unit tests
+# Equivalent of azure-pipelines/templates/java-build.yml
+name: Java Build & Test
+description: Set up JDK, run mvn clean verify, upload surefire results.
+
+inputs:
+  service-dir:
+    description: Path to the service directory containing pom.xml (e.g. microservice-backend/auth-service)
+    required: true
+  java-version:
+    description: JDK version to use
+    required: false
+    default: '25'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Java ${{ inputs.java-version }}
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: ${{ inputs.java-version }}
+        cache: maven
+
+    - name: Maven build & test
+      shell: bash
+      run: mvn -f ${{ inputs.service-dir }}/pom.xml clean verify -Xmx2048m
+
+    - name: Upload surefire reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: surefire-${{ inputs.service-dir }}
+        path: ${{ inputs.service-dir }}/**/surefire-reports/TEST-*.xml
+        if-no-files-found: ignore
