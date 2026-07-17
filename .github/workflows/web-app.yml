@@ -1,12 +1,12 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Web App (React/Vite Frontend) — GitHub Actions Workflow
 # Equivalent of azure-pipelines/web-app.yml
-# Triggers on: dev | test | prod  ·  paths: frontend source + helm chart
+# Triggers on: dev/development | test | prod  ·  paths: frontend source + helm chart
 #
 # Docker images are pushed to GitHub Container Registry (ghcr.io) using the
 # built-in GITHUB_TOKEN — no external registry secrets required.
 #
-# Required environment secrets (dev / test / prod):
+# Required environment secrets (dev/development / test / prod):
 #   AZURE_CREDENTIALS, AKS_CLUSTER_NAME, AKS_RESOURCE_GROUP
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ name: web-app
 on:
   workflow_dispatch:
   push:
-    branches: [dev, test, prod]
+    branches: [dev, development, devlopment, test, prod]
     paths:
       - frontend/**
       - helm-charts/web-app/**
@@ -60,11 +60,11 @@ jobs:
           registry-username: ${{ github.actor }}
           registry-password: ${{ secrets.GITHUB_TOKEN }}
 
-  # ── 3a. Deploy → dev ─────────────────────────────────────────────────────────
+  # ── 3a. Deploy → dev/development ─────────────────────────────────────────────
   deploy-dev:
-    name: Deploy to dev
+    name: Deploy to dev/development
     needs: package
-    if: github.ref_name == 'dev'
+    if: contains(fromJson('["dev","development","devlopment"]'), github.ref_name)
     runs-on: ubuntu-latest
     environment: dev
     steps:
