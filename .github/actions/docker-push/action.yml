@@ -41,7 +41,7 @@ runs:
         TOKEN=$(curl -sf \
           -u "${DH_USER}:${DH_TOKEN}" \
           "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${DH_USER}/${SERVICE}:pull" \
-          | jq -r '.token // empty')
+          | jq -r '.token // empty' 2>/dev/null || true)
 
         # Fetch existing tags — gracefully handles brand-new repos (404 → empty)
         if [ -n "$TOKEN" ]; then
@@ -57,7 +57,7 @@ runs:
         LATEST=$(printf '%s\n' $TAGS \
           | grep -E "^${ENV}-v[0-9]+$" \
           | sed "s/^${ENV}-v//" \
-          | sort -n | tail -1)
+          | sort -n | tail -1 || true)
         NEXT=$(( ${LATEST:-0} + 1 ))
         IMAGE_TAG="${ENV}-v${NEXT}"
 
