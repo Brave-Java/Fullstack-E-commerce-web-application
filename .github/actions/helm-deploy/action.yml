@@ -28,8 +28,8 @@ inputs:
   aks-resource-group:
     description: AKS resource group
     required: true
-  acr-registry:
-    description: ACR login server (e.g. myregistry.azurecr.io)
+  dockerhub-username:
+    description: Docker Hub username (used to resolve the image path)
     required: true
   extra-helm-args:
     description: Additional --set flags passed to helm upgrade (e.g. --set secret.FOO=bar)
@@ -63,7 +63,7 @@ runs:
           ${{ inputs.service-name }}-${{ inputs.namespace }} \
           ${{ inputs.helm-chart-path }} \
           --namespace ${{ inputs.namespace }} \
-          --set ${{ inputs.helm-values-key }}.image=${{ inputs.acr-registry }}/${{ inputs.service-name }}:${{ inputs.image-tag }} \
+          --set ${{ inputs.helm-values-key }}.image=${{ inputs.dockerhub-username }}/${{ inputs.service-name }}:${{ inputs.image-tag }} \
           --values ${{ inputs.helm-chart-path }}/values-${{ inputs.namespace }}.yaml \
           --atomic --timeout 5m \
           ${{ inputs.extra-helm-args }}

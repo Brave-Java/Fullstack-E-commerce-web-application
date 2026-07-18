@@ -4,7 +4,7 @@
 # Triggers on: dev | test | prod  ·  paths: api-gateway source + helm chart
 #
 # Required repository secrets (Settings → Secrets → Actions):
-#   ACR_REGISTRY, ACR_USERNAME, ACR_PASSWORD
+#   DOCKERHUB_USERNAME, DOCKERHUB_TOKEN
 #
 # Required environment secrets (Settings → Environments → dev/test/prod):
 #   AZURE_CREDENTIALS, AKS_CLUSTER_NAME, AKS_RESOURCE_GROUP
@@ -42,9 +42,8 @@ jobs:
         with:
           service-name: api-gateway
           service-dir: microservice-backend/api-gateway
-          acr-registry: ${{ secrets.ACR_REGISTRY }}
-          acr-username: ${{ secrets.ACR_USERNAME }}
-          acr-password: ${{ secrets.ACR_PASSWORD }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
   # ── 3a. Deploy → dev ─────────────────────────────────────────────────────────
   deploy-dev:
@@ -65,7 +64,7 @@ jobs:
           azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
           aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
           aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
-          acr-registry: ${{ secrets.ACR_REGISTRY }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
 
   # ── 3b. Deploy → test ────────────────────────────────────────────────────────
   deploy-test:
@@ -86,7 +85,7 @@ jobs:
           azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
           aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
           aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
-          acr-registry: ${{ secrets.ACR_REGISTRY }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
 
   # ── 3c. Deploy → prod ────────────────────────────────────────────────────────
   deploy-prod:
@@ -107,4 +106,4 @@ jobs:
           azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
           aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
           aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
-          acr-registry: ${{ secrets.ACR_REGISTRY }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
