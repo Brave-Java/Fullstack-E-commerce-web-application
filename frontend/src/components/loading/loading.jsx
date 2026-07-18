@@ -1,4 +1,4 @@
-import FadeLoader from "react-spinners/FadeLoader";
+import { FadeLoader } from "react-spinners";
 
 function Loading() {
     return (

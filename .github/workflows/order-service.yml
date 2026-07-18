@@ -35,12 +35,16 @@ jobs:
     name: Docker Build & Push
     needs: build
     runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.docker.outputs.image-tag }}
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/docker-push
+      - id: docker
+        uses: ./.github/actions/docker-push
         with:
           service-name: order-service
           service-dir: microservice-backend/order-service
+          environment: ${{ github.ref_name }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
@@ -58,7 +62,7 @@ jobs:
           helm-values-key: order
           helm-chart-path: helm-charts/order-service
           namespace: dev
-          image-tag: ${{ github.run_id }}
+          image-tag: ${{ needs.package.outputs.image-tag }}
           azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
           aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
           aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
@@ -79,7 +83,7 @@ jobs:
           helm-values-key: order
           helm-chart-path: helm-charts/order-service
           namespace: test
-          image-tag: ${{ github.run_id }}
+          image-tag: ${{ needs.package.outputs.image-tag }}
           azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
           aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
           aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
@@ -100,7 +104,7 @@ jobs:
           helm-values-key: order
           helm-chart-path: helm-charts/order-service
           namespace: prod
-          image-tag: ${{ github.run_id }}
+          image-tag: ${{ needs.package.outputs.image-tag }}
           azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
           aks-cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
           aks-resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
