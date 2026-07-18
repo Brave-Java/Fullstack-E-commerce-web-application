@@ -66,7 +66,7 @@ jobs:
   deploy-dev:
     name: Deploy to dev
     needs: package
-    if: github.ref_name == 'dev' && secrets.AZURE_CREDENTIALS != ''
+    if: github.ref_name == 'dev'
     runs-on: ubuntu-latest
     environment: dev
     steps:
@@ -87,7 +87,7 @@ jobs:
   deploy-test:
     name: Deploy to test
     needs: package
-    if: github.ref_name == 'test' && secrets.AZURE_CREDENTIALS != ''
+    if: github.ref_name == 'test'
     runs-on: ubuntu-latest
     environment: test
     steps:
@@ -108,7 +108,7 @@ jobs:
   deploy-prod:
     name: Deploy to prod
     needs: package
-    if: github.ref_name == 'prod' && secrets.AZURE_CREDENTIALS != ''
+    if: github.ref_name == 'prod'
     runs-on: ubuntu-latest
     environment: prod
     steps:
