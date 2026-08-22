@@ -24,9 +24,9 @@ function Footer() {
                 <div>
                     <h1>Contact Us</h1>
                     <div>
-                        <p><span><i className="fa fa-map-marker"></i></span>No 123, Lotus strret, Colombo</p>
-                        <p><span><i className="fa fa-phone"></i></span>+94 741258963, 9632587412</p>
-                        <p><span><i className="fa fa-envelope"></i></span>bitebliss@abc.com</p>
+                        <p><span><i className="fa fa-map-marker"></i></span>2e Braamstraat, South-Holland</p>
+                        <p><span><i className="fa fa-phone"></i></span>+31 622847777</p>
+                        <p><span><i className="fa fa-envelope"></i></span>mikaelhispano@gmail.com</p>
                     </div>
                     <p>
                         <span><i className="fa fa-facebook"></i></span>
