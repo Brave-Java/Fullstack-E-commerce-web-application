@@ -59,7 +59,7 @@ runs:
           | sed "s/^${ENV}-v//" \
           | sort -n | tail -1 || true)
         NEXT=$(( ${LATEST:-0} + 1 ))
-        IMAGE_TAG="${ENV}-v${NEXT}"
+        IMAGE_TAG="${ENV}-v$(printf '%02d' ${NEXT})"
 
         echo "image-tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
         echo "Computed image tag: ${IMAGE_TAG}"
