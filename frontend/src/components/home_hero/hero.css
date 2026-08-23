@@ -30,6 +30,17 @@
     padding: 10px 35px;
     margin-right: 10px;
 }
+.hero-version-badge {
+    display: inline-block;
+    background-color: var(--primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
 
 @media all and (max-width:900px) {
     .hero-section  {
